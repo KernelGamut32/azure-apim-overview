@@ -186,13 +186,13 @@ You’ll use a policy to return a fixed JSON payload from APIM, without calling 
          <set-header name="Content-Type" exists-action="override">
            <value>application/json</value>
          </set-header>
-         <set-body>
-           {
-             "message": "Hello from Azure API Management!",
-             "timestamp": "@(DateTime.UtcNow.ToString(\"o\"))",
-             "student": "@(context.Request.Headers.GetValueOrDefault(\"x-student-name\", \"anonymous\"))"
-           }
-         </set-body>
+         <set-body>@{
+           return new JObject(
+             new JProperty("message", "Hello from Azure API Management!"),
+             new JProperty("timestamp", DateTime.UtcNow.ToString("o")),
+             new JProperty("student", context.Request.Headers.GetValueOrDefault("x-student-name", "anonymous"))
+           ).ToString();
+         }</set-body>
        </return-response>
      </inbound>
      <backend>

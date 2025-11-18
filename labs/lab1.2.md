@@ -129,46 +129,30 @@ https://petstore3.swagger.io/api/v3/openapi.json
 
    1. **Dev base URL**
       - **Name**: `petstore-base-url-dev`
-      - **Display name**: `Petstore base URL (dev)`
+      - **Display name**: `PetstoreBaseURLDev`
       - **Type**: `Plain`
-      - **Value**: `https://petstore.swagger.io/v2`
+      - **Value**: `https://petstore3.swagger.io/api/v3`
       - **Tags** (optional): `petstore`, `dev`
-      - Click **Create**.
+      - Click **Save**.
 
    2. **Prod base URL** (for stretch/preview)
       - **Name**: `petstore-base-url-prod`
-      - **Display name**: `Petstore base URL (prod)`
+      - **Display name**: `PetstoreBaseURLProd`
       - **Type**: `Plain`
-      - **Value**: `https://petstore.swagger.io/v2`  
+      - **Value**: `https://petstore3.swagger.io/api/v3`  
         > For this lab, dev and prod use the same host. In a real environment, these would point to different hosts or deployments.
       - **Tags** (optional): `petstore`, `prod`
-      - Click **Create**.
+      - Click **Save**.
 
-> 💡 You can now reference these values anywhere in APIM using the `{{name}}` syntax, for example: `{{petstore-base-url-dev}}`.
+> 💡 You can now reference these values anywhere in APIM using the `{{name}}` syntax, for example: `{{PetstoreBaseURLDev}}`.
 
-### 5.2 Create a Backend that uses the dev Named value
-
-1. In the APIM left menu, select **Backends**.
-2. Click **+ Add**.
-3. Configure the new backend:
-
-   - **Name**: `petstore-backend-dev`
-   - **Title**: `Petstore backend (dev)`
-   - **Type**: keep default (`Single` / HTTP backend).
-   - **URL**: `{{petstore-base-url-dev}}`  
-     > This uses the Named value so you can redirect to another environment later without editing policies everywhere.
-   - Leave **Credentials**, **Proxy**, and **TLS** with their defaults for now.
-4. Click **Create**.
-
-> ✅ **Checkpoint:** You now have a **Named value** and a **Backend** that wraps the Petstore base URL (dev).
-
-### 5.3 Connect the Petstore API to the Backend (API-level policy)
+### 5.2 Connect the Petstore API to the Backend (API-level policy)
 
 You’ll now update the API’s inbound policy so all operations use the `petstore-backend-dev` backend.
 
 1. Go to **APIs** and open your **Swagger Petstore** API.
 2. Select the **Design** view and make sure the **API** (top-level) is selected (not an individual operation).
-3. Click **</> Code editor** or **Policies** to edit the **API scope** policy.
+3. Click **</> Code editor** in **Inbound processing**.
 4. Replace the existing `<policies>` block (or wrap existing content) so it looks like this:
 
    ```xml
@@ -176,7 +160,7 @@ You’ll now update the API’s inbound policy so all operations use the `petsto
      <inbound>
        <base />
        <!-- Route all operations on this API to the petstore-backend-dev -->
-       <set-backend-service backend-id="petstore-backend-dev" />
+       <set-backend-service base-url="{{PetstoreBaseURLDev}}" />
      </inbound>
      <backend>
        <base />
@@ -196,7 +180,7 @@ You’ll now update the API’s inbound policy so all operations use the `petsto
 >
 > - The **API-level policy** applies to **all operations** in the Petstore API.  
 > - `set-backend-service` ties the API to your **backend entity**, which in turn uses a **Named value** for the base URL.
-> ✅ **Checkpoint:** Any operation on your Petstore API will now route through the `petstore-backend-dev` backend.
+> ✅ **Checkpoint:** Any operation on your Petstore API will now route through the `PetstoreBaseURLDev` URL.
 
 ---
 
@@ -220,141 +204,16 @@ You’ll now update the API’s inbound policy so all operations use the `petsto
 2. If available in your portal experience, turn on **Trace** (or **Debug**), then re‑execute the operation.
 3. In the trace output:
    - Look for a line showing the **backend URL** that APIM called.
-   - Confirm it matches the expected Petstore endpoint (for example, `https://petstore.swagger.io/v2/pet/findByStatus?...`).
+   - Confirm it matches the expected Petstore endpoint (for example, `https://petstore3.swagger.io/api/v3/pet/findByStatus?...`).
 
 > ✅ **Checkpoint:** You can clearly articulate:
 >
 > - **Frontend URL** (APIM gateway): `https://<apim-name>.azure-api.net/petstore/...`
-> - **Backend URL** (real service): `https://petstore.swagger.io/v2/...`
+> - **Backend URL** (real service): `https://petstore3.swagger.io/api/v3/...`
 
 ---
 
-## 7. Task 5 — Create a simple Azure Function HTTP API
-
-> **Goal:** Create an **HTTP-triggered Azure Function** that behaves like a small REST API (for example, returning order status).
-> ⚠️ This task focuses on **concepts** and a minimal endpoint. For production, you typically develop functions locally (Visual Studio / VS Code) and publish to Azure.
-
-### 7.1 Create a Function App
-
-1. In the Azure portal, select **Create a resource**.
-2. Search for **Function App** and select it.
-3. Click **Create** and on the **Basics** tab, provide:
-   - **Subscription**: Your training subscription.
-   - **Resource group**: Use your existing group (for example, `rg-apim-training`).
-   - **Function App name**: `func-order-status-<your-initials>` (must be globally unique).
-   - **Runtime stack**: Choose a language you’re comfortable with (for example, **.NET**, **Node.js**, or **Python**).
-   - **Hosting options / Plan type**: Use the recommended **Consumption** plan for lab scenarios.
-   - Other defaults: accept recommended defaults unless instructed otherwise by your instructor.
-4. Click **Review + create**, then **Create**.
-5. Wait for the deployment to finish and click **Go to resource**.
-
-### 7.2 Add an HTTP-triggered function
-
-The UI will vary slightly depending on runtime, but at a high level:
-
-1. In your **Function App**, go to **Functions**.
-2. Select **+ Create** (or **+ Add**).
-3. Choose the **HTTP trigger** template.
-4. Configure the function:
-   - **Function name**: `GetOrderStatus`
-   - **Authorization level**: `Function` (so calls require a function key).
-5. Finish creating the function.
-
-### 7.3 Adjust the route and response (conceptually)
-
-Different languages/templates expose the route slightly differently, but the idea is:
-
-- The function should accept a route like:  
-  `GET /api/orders/{orderId}`  
-- The function should return **JSON** describing that order.
-
-In your function’s trigger configuration (attribute, decorator, or `function.json`, depending on runtime):
-
-1. Set the route to something like:
-
-   ```text
-   orders/{orderId}
-   ```
-
-2. In your handler code, read the `orderId` route parameter and return a JSON body similar to:
-
-   ```json
-   {
-     "orderId": "12345",
-     "status": "Processing",
-     "estimatedShipDate": "2025-11-20"
-   }
-   ```
-
-3. Save your changes.
-
-### 7.4 Test the function directly
-
-1. In the function’s blade, select **Code + Test** (or **Test/Run**).
-2. Configure a **GET** request with `orderId=12345` in the path (for example, `/api/orders/12345`).
-3. Provide the required **x-functions-key** or use the built‑in **Test** UI that injects it for you.
-4. Run the function and confirm you receive your JSON response.
-
-> ✅ **Checkpoint:** Your Azure Function app exposes a working HTTP endpoint like `/api/orders/{orderId}` that returns JSON.
-
----
-
-## 8. Task 6 — Import the Function App into APIM and examine Named values
-
-> **Goal:** Import your **Function App** as an API in APIM and see how APIM uses **Backends** and **Named values** for function keys.
-
-### 8.1 Link the function to your APIM instance
-
-You can import the Function either from **APIM** or from the **Function App** blade. This lab uses the Function App view, which automatically wires up keys and named values.
-
-1. In the Azure portal, open your **Function App** (for example, `func-order-status-<your-initials>`).
-2. In the left menu, look for an **API** or **API Management** section (for example, **API Management** or **API > API Management**).
-3. Select **API Management** or **Link API**.
-4. In the **Import / Link API** experience:
-   - Choose your **APIM instance**.
-   - Ensure **GetOrderStatus** (or the HTTP function you created) is selected.
-   - Choose **Create new API** in APIM (not append to an existing API).
-5. Accept the defaults for the API name and suffix, then select **Create** / **Link**.
-
-Azure will:
-
-- Create a new **API** in APIM that mirrors your function endpoint.
-- Create a **Named value** in APIM that stores the **function host key**.
-- Configure APIM to send the function key in the appropriate header when calling your Function backend.
-
-### 8.2 Inspect the imported Function API in APIM
-
-1. Switch back to your **API Management** instance.
-2. Go to **APIs**.
-3. Locate the newly created API (its name will include your Function App name).
-4. Open the API and check:
-   - The **operations** (for example, a `GET /orders/{orderId}` operation).
-   - The **Frontend** route (APIM URL suffix + operation path).
-   - The **Backend** section (may reference a function‑specific backend or inline URL).
-
-### 8.3 Inspect Named values and policies for the function key
-
-1. In APIM, go to **Named values**.
-2. Look for a Named value added for your function (for example, something like `functionkey-func-order-status-...`).
-   - Note that this is used to store the **function host key** securely.
-3. Return to your Function API in APIM and open the **Policies** editor at the API or operation level.
-4. Look for a policy that sets the `x-functions-key` header, often similar to:
-
-   ```xml
-   <set-header name="x-functions-key" exists-action="override">
-     <value>{{some-function-key-named-value}}</value>
-   </set-header>
-   ```
-
-> 💡 **Concept link:**
->
-> - APIM uses **Named values** to hold secrets like function keys.  
-> - Policies reference these Named values and send them as headers to the **Function backend**.
-> ✅ **Checkpoint:** You can identify where the **function key Named value** is stored and how APIM uses it when calling your Function API.
-
----
-
-## 9. Stretch Task A — Add more Petstore operations pointing to different backend routes
+## 7. Stretch Task A — Add more Petstore operations pointing to different backend routes
 
 > **Goal:** Add multiple operations in APIM that all use the same backend but different **paths** / **operations**.
 
@@ -378,16 +237,11 @@ Using your **Swagger Petstore** API:
 
 ---
 
-## 10. Stretch Task B — Simulate dev vs prod backends with Named values
+## 8. Stretch Task B — Simulate dev vs prod backends with Named values
 
-> **Goal:** Use different backends (dev vs prod) wired via **Named values**, to prepare for multi-environment deployments.
+> **Goal:** Use different **Named values** to prepare for multi-environment deployments.
 
-1. In APIM, go to **Backends** and create another backend:
-
-   - **Name**: `petstore-backend-prod`
-   - **Title**: `Petstore backend (prod)`
-   - **URL**: `{{petstore-base-url-prod}}`
-
+1. Modify the **Named value** for the prod URL - set it to something that is obviously invalid
 2. Decide how you want to switch between dev/prod for the Petstore API. Two common patterns:
 
    **Pattern 1 — Duplicate API with different backend**
@@ -395,13 +249,13 @@ Using your **Swagger Petstore** API:
    - In the cloned API’s **API-level policy**, change:
 
      ```xml
-     <set-backend-service backend-id="petstore-backend-dev" />
+     <set-backend-service base-url="{{PetstoreBaseURLDev}}" />
      ```
 
      to:
 
      ```xml
-     <set-backend-service backend-id="petstore-backend-prod" />
+     <set-backend-service base-url="{{PetstoreBaseURLProd}}" />
      ```
 
    **Pattern 2 — Versioning or suffix‑based environments**
